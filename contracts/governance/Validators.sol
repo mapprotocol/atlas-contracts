@@ -266,6 +266,7 @@ CalledByVm
         uint256 commission,
         address lesser,
         address greater,
+        address walletAddress,
         bytes[] calldata blsBlsG1BlsPopEcdsaPub
     ) external nonReentrant returns (bool) {
         require(blsBlsG1BlsPopEcdsaPub.length == 4, "wrong params");
@@ -293,6 +294,7 @@ CalledByVm
         validator.commission = newCommission;
         validator.slashInfo = SlashingInfo(FixidityLib.fixed1(), 0);
         emit ValidatorRegistered(account, newCommissionWrap);
+        getAccounts().setWalletAddressForRegister(account,walletAddress);
         validator.registerTimestamp = now;
         getElection().markValidatorEligible(lesser, greater, account);
         return true;
@@ -440,7 +442,8 @@ CalledByVm
 
                 uint256 remainPayment = totalPayment.fromFixed().sub(validatorCommission);
                 //----------------- validator -----------------
-                require(getGoldToken2().mint(account, validatorCommission), "mint failed to validator account");
+                address walletAddress = getAccounts().getWalletAddress(account);
+                require(getGoldToken2().mint(walletAddress, validatorCommission), "mint failed to validator walletAddress");
 
                 emit ValidatorEpochPaymentDistributed(account, validatorCommission);
                 return (totalPayment.fromFixed(), remainPayment);

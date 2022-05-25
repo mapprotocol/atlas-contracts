@@ -17,6 +17,7 @@ interface IAccounts {
   function setMetadataURL(string calldata) external;
   function setName(string calldata) external;
   function setWalletAddress(address, uint8, bytes32, bytes32) external;
+  function setWalletAddressForRegister(address,address) external;
   function setAccount(string calldata, bytes calldata, address, uint8, bytes32, bytes32) external;
 
   function getDataEncryptionKey(address) external view returns (bytes memory);

@@ -95,6 +95,7 @@ IMapVersionedContract,
   event AccountNameSet(address indexed account, string name);
   event AccountMetadataURLSet(address indexed account, string metadataURL);
   event AccountWalletAddressSet(address indexed account, address walletAddress);
+  event AccountWalletAddressSetForRegister(address indexed account, address walletAddress);
   event AccountCreated(address indexed account);
 
   /**
@@ -214,6 +215,18 @@ IMapVersionedContract,
     Account storage account = accounts[msg.sender];
     account.walletAddress = walletAddress;
     emit AccountWalletAddressSet(msg.sender, walletAddress);
+  }
+
+  //
+  function setWalletAddressForRegister(address validator,address walletAddress) external {
+    require(
+      msg.sender == registry.getAddressFor(VALIDATORS_REGISTRY_ID),
+      "Sender not authorized to setWalletAddressForRegister"
+    );
+    require(isAccount(validator), "Unknown account");
+    Account storage account = accounts[validator];
+    account.walletAddress = walletAddress;
+    emit AccountWalletAddressSetForRegister(validator, walletAddress);
   }
 
   /**
