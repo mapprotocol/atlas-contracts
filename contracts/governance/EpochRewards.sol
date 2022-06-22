@@ -30,6 +30,7 @@ CalledByVm
     FixidityLib.Fraction  private epochRelayerPaymentFraction;
 
     address public communityPartner;
+    address public mgrMaintainer;
     uint256 public epochPayment;
 
     event TargetVotingGoldFractionSet(uint256 fraction);
@@ -72,17 +73,19 @@ CalledByVm
         uint256 _targetEpochPayment,
         uint256 _communityRewardFraction,
         uint256 _epochRelayerPaymentFraction,
-        address _communityPartner
+        address _communityPartner,
+        address mgrAddr
     ) external initializer {
         _transferOwnership(msg.sender);
         setRegistry(registryAddress);
         setTargetEpochPayment(_targetEpochPayment);
         if (_epochRelayerPaymentFraction!=0){
-            setEpochRelayerPaymentFraction(_epochRelayerPaymentFraction);
+            setEpochMaintainerPaymentFraction(_epochRelayerPaymentFraction);
         }
         if (_communityRewardFraction!=0){
            setCommunityRewardFraction(_communityPartner, _communityRewardFraction);
         }
+        setMgrMaintainerAddress(mgrAddr);
         startTime = now;
     }
 
@@ -107,7 +110,7 @@ CalledByVm
         return true;
     }
 
-    function setEpochRelayerPaymentFraction(uint256 value) public onlyOwner returns (bool) {
+    function setEpochMaintainerPaymentFraction(uint256 value) public onlyOwner returns (bool) {
         require(
             value != epochRelayerPaymentFraction.unwrap(),
             "EpochRelayerPaymentFraction value must be different from existing EpochRelayerPaymentFraction"
@@ -118,6 +121,11 @@ CalledByVm
         );
         epochRelayerPaymentFraction = FixidityLib.wrap(value);
         emit EpochRelayerPaymentFractionFundSet(value);
+        return true;
+    }
+    function setMgrMaintainerAddress(address addr) public onlyOwner returns (bool) {
+        require(addr != mgrMaintainer,"same address");
+        mgrMaintainer = addr;
         return true;
     }
 
@@ -155,7 +163,9 @@ CalledByVm
     function getCommunityPartner() external view returns (address){
         return communityPartner;
     }
-
+    function getMgrMaintainerAddress() external view returns (address){
+        return mgrMaintainer;
+    }
 
 
 
