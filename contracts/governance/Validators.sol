@@ -110,6 +110,11 @@ CalledByVm
         address indexed validator,
         uint256 validatorPayment
     );
+    event ValidatorAndVotersEpochPaymentDistributed(
+        address indexed validator,
+        uint256 validatorPayment,
+        uint256 votersPayment
+    );
 
     modifier onlySlasher() {
         require(getLockedGold().isSlasher(msg.sender), "Only registered slasher can call");
@@ -398,12 +403,12 @@ CalledByVm
      *   validator commission.
      * @return The total payment paid to the validator and voters.
      */
-    function distributeEpochPaymentsFromSigner(address signer, uint256 maxPayment, uint256 totalScores)
+    function distributeEpochPaymentsFromSigner(address signer, uint256 maxPayment, uint256 denominator)
     external
     onlyVm()
     returns (uint256, uint256)
     {
-        return _distributeEpochPaymentsFromSigner(signer, maxPayment, totalScores);
+        return _distributeEpochPaymentsFromSigner(signer, maxPayment, denominator);
     }
 
     /**
@@ -413,49 +418,49 @@ CalledByVm
      *   validator commission.
      * @return The total payment paid to the validator and voters.
      */
-    function _distributeEpochPaymentsFromSigner(address signer, uint256 maxPayment, uint256 totalScores)
+    function _distributeEpochPaymentsFromSigner(address signer, uint256 maxPayment, uint256 denominator)
     internal
     returns (uint256, uint256)
     {
         address account = getAccounts().signerToAccount(signer);
-        if (isValidator(account)) {
-            require(account != address(0), "Validator not registered with a validator");
-            // Both the validator and the validator must maintain the minimum locked gold balance in order to
-            // receive epoch payments.
-            if (meetsAccountLockedGoldRequirements(account)) {
-                FixidityLib.Fraction memory totalPayment = FixidityLib.newFixed(maxPayment);
-                // maxPayment * score * multiplier
-                //totalScores = (N*p+s1+s2+s3...)
-                //totalPaymentMultiplier = (score + p) / totalScores
-                FixidityLib.Fraction memory totalPaymentMultiplier =
-                validators[account].score.add(pledgeMultiplierInReward)
-                .divide(FixidityLib.wrap(totalScores));
-
-                totalPayment = totalPayment.multiply(totalPaymentMultiplier);
-                //                 .multiply(validators[account].slashInfo.multiplier); //todo slash
-
-                uint256 validatorCommission =
-                totalPayment
-                .multiply(validators[account].commission).fromFixed();
-
-                uint256 remainPayment = totalPayment.fromFixed().sub(validatorCommission);
-                //----------------- validator -----------------
-                require(getGoldToken2().mint(account, validatorCommission), "mint failed to validator account");
-
-                emit ValidatorEpochPaymentDistributed(account, validatorCommission);
-                return (totalPayment.fromFixed(), remainPayment);
-            } else {
-                return (0, 0);
-            }
-        } else {
+        if (!isValidator(account)) {
             return (0, 0);
         }
+        require(account != address(0), "Validator not registered with a validator");
+        // Both the validator and the validator must maintain the minimum locked gold balance in order to
+        // receive epoch payments.
+        if (!meetsAccountLockedGoldRequirements(account)) {
+            return (0, 0);
+        }
+        // totalScores = denominator - n*p
+        uint256 validatorNum = getElection().electValidatorSigners().length;
+        uint256 totalScores = denominator.sub(FixidityLib.newFixed(validatorNum).multiply(pledgeMultiplierInReward).unwrap());
+
+        FixidityLib.Fraction memory paymentMultiplier = getPaymentMultiplier(account, totalScores);
+        FixidityLib.Fraction memory validatorAndVotersPayment = FixidityLib.newFixed(maxPayment).multiply(paymentMultiplier);
+
+        // validatorPayment = totalPayment * commission * score
+        uint256 validatorPayment = validatorAndVotersPayment.multiply(validators[account].commission).multiply(validators[account].score).fromFixed();
+        require(getGoldToken2().mint(account, validatorPayment), "mint failed to validator account");
+        uint256 votersPayment = validatorAndVotersPayment.fromFixed().sub(validatorPayment);
+        emit ValidatorEpochPaymentDistributed(account, validatorPayment);
+        emit ValidatorAndVotersEpochPaymentDistributed(account, validatorPayment, votersPayment);
+        return (validatorAndVotersPayment.fromFixed(), votersPayment);
     }
 
+    function getPaymentMultiplier(address account, uint256 totalScores) internal view returns (FixidityLib.Fraction memory) {
+        FixidityLib.Fraction memory stakingWeight = pledgeMultiplierInReward;
+        FixidityLib.Fraction memory workWeight = FixidityLib.fixed1().subtract(stakingWeight);
 
-
-
-
+        // vi =  active votes / total active votes
+        uint256 activeVotes = getElection().getActiveVotesForValidator(account);
+        uint256 totalActiveVotes = getElection().getActiveVotes();
+        FixidityLib.Fraction memory vi = FixidityLib.newFixed(activeVotes).divide(FixidityLib.newFixed(totalActiveVotes));
+        // si = score / totalScores
+        FixidityLib.Fraction memory si = validators[account].score.divide(FixidityLib.wrap(totalScores));
+        // stakingWeight * vi + workWeight * si
+        return stakingWeight.multiply(vi).add(workWeight.multiply(si));
+    }
 
     /**
      * @notice De-registers a validator.
