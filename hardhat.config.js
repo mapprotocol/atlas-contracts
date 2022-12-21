@@ -36,6 +36,10 @@ module.exports = {
             url: 'http://18.142.54.137:7445',
             accounts: ['0x879c29fc7d2d889ccb2f45b9b399dea892a89f8b3c77d024ed053d2ac833b734']
         },
+        map_main: {
+            url: 'https://rpc.maplabs.io',
+            accounts: ['']
+        },
     },
     contractSizer: {
         alphaSort: true,
